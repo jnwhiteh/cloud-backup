@@ -1,17 +1,17 @@
-package sync
+package main
 
 import (
 	"fmt"
 	"sort"
 )
 
-type File struct {
+type HashedFile struct {
 	Folder   string // the path to the parent folder
 	Filename string
 	Hash     string // a hex digest of the file contents
 }
 
-type byName []File
+type byName []HashedFile
 
 func (a byName) Len() int {
 	return len(a)
@@ -23,35 +23,37 @@ func (a byName) Less(i, j int) bool {
 	return a[i].Filename < a[j].Filename
 }
 
-type FilestoreAPI interface {
+type Filer interface {
 	// Return a list of files in the given path/folder
-	Files(path string) ([]File, error)
-	// Create a folder at the remote path, if it doesn't exist
-	Mkdir(path string) error
+	Files(path string) ([]HashedFile, error)
 }
 
-type status string
+type Status string
 
 var (
-	STATUS_ALREADY       status = "Already synchronized"
-	STATUS_NEED_SYNC     status = "Needs sync"
-	STATUS_UPLOADED      status = "Uploaded"
+	STATUS_ALREADY       Status = "Already synchronized"
+	STATUS_NEED_SYNC     Status = "Needs sync"
+	STATUS_UPLOADED      Status = "Uploaded"
 	ERR_REMOTE_NOT_CLEAN error  = fmt.Errorf("Remote folder is not clean")
 	ERR_LOCAL_NO_HASH    error  = fmt.Errorf("Local file has no hash")
 )
 
 type SyncStatus struct {
-	File
-	Status status
+	HashedFile
+	Status Status
 	Error  error
 }
 
 type Syncer struct {
-	local  FilestoreAPI
-	remote FilestoreAPI
+	local  Filer
+	remote Filer
 }
 
-func (s Syncer) SyncFolder(localPath, remotePath string) ([]*SyncStatus, error) {
+func NewSyncer(local Filer, remote Filer) Syncer {
+	return Syncer{local, remote}
+}
+
+func (s Syncer) SyncStatus(localPath, remotePath string) ([]*SyncStatus, error) {
 	// verify that the local folder exists
 	localFiles, err := s.local.Files(localPath)
 	if err != nil {
@@ -64,12 +66,6 @@ func (s Syncer) SyncFolder(localPath, remotePath string) ([]*SyncStatus, error) 
 		}
 	}
 
-	// check if the remote folder exists
-	err = s.remote.Mkdir(remotePath)
-	if err != nil {
-		return nil, err
-	}
-
 	// fetch files from the remote folder
 	remoteFiles, err := s.remote.Files(remotePath)
 	if err != nil {
@@ -79,7 +75,7 @@ func (s Syncer) SyncFolder(localPath, remotePath string) ([]*SyncStatus, error) 
 	return s.Worklist(localFiles, remoteFiles)
 }
 
-func (s Syncer) Worklist(localFiles, remoteFiles []File) ([]*SyncStatus, error) {
+func (s Syncer) Worklist(localFiles, remoteFiles []HashedFile) ([]*SyncStatus, error) {
 	sort.Sort(byName(localFiles))
 	sort.Sort(byName(remoteFiles))
 
@@ -120,9 +116,9 @@ func (s Syncer) Worklist(localFiles, remoteFiles []File) ([]*SyncStatus, error) 
 	return files, nil
 }
 
-func (s Syncer) addWithStatus(files []*SyncStatus, file File, status status) []*SyncStatus {
+func (s Syncer) addWithStatus(files []*SyncStatus, file HashedFile, status Status) []*SyncStatus {
 	return append(files, &SyncStatus{
-		File:   file,
-		Status: status,
+		HashedFile: file,
+		Status:     status,
 	})
 }
