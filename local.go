@@ -107,3 +107,9 @@ func (f *LocalFilesystem) Hash(path string) (string, error) {
 	io.Copy(f.hasher, file)
 	return fmt.Sprintf("%x", f.hasher.Sum(nil)), nil
 }
+
+// Return an io.ReadCloser that contains the contents of the file
+func (f *LocalFilesystem) FileReader(path string) (io.ReadCloser, error) {
+
+	return nil, nil
+}
